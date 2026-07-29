@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: api-task-portal-server
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node src/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: GOOGLE_CLIENT_EMAIL
+        sync: false
+      - key: GOOGLE_PRIVATE_KEY
+        sync: false
+      - key: GOOGLE_SHEET_ID
+        sync: false
+      - key: GOOGLE_SHEET_TAB_NAME
+        value: "Api list"
+      - key: GOOGLE_USERS_TAB_NAME
+        value: Users
+      - key: GOOGLE_ACTIVITY_TAB_NAME
+        value: ActivityLog
+      - key: CLIENT_ORIGIN
+        sync: false

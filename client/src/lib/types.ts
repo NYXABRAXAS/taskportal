@@ -1,0 +1,104 @@
+export type Role = 'Admin' | 'Developer';
+
+export interface AuthUser {
+  username: string;
+  role: Role;
+  fullName: string;
+  email: string;
+}
+
+export interface BreachInfo {
+  breached: boolean;
+  days: number;
+}
+
+export interface Task {
+  rowNumber: number;
+  serial: string | number;
+  apiName: string;
+  category: string;
+  phase: string;
+  developer: string;
+  apiStatus: string;
+  apiDate: string;
+  deployment: string;
+  deploymentStatus: string;
+  deploymentDate: string;
+  mobileIntegration: string;
+  mobileStatus: string;
+  mobileIntegrationDate: string;
+  webIntegration: string;
+  webStatus: string;
+  webIntegrationDate: string;
+  remarks: string;
+  attachmentUrl: string;
+  lastUpdatedBy: string;
+  lastUpdatedAt: string;
+  breach: {
+    api: BreachInfo;
+    deployment: BreachInfo;
+    mobile: BreachInfo;
+    web: BreachInfo;
+    any: boolean;
+  };
+  dueToday: boolean;
+}
+
+export interface DashboardStats {
+  totalApis: number;
+  pendingApis: number;
+  completedApis: number;
+  deploymentPending: number;
+  deploymentCompleted: number;
+  mobilePending: number;
+  mobileCompleted: number;
+  webPending: number;
+  webCompleted: number;
+  breachedApis: number;
+  todaysDue: number;
+  completionPct: number;
+  statusPie: Record<string, number>;
+  phaseWise: Record<string, number>;
+  categoryWise: Record<string, number>;
+  monthlyProgress: { month: string; total: number; completed: number }[];
+  totalDevelopers?: number;
+  byDeveloper?: {
+    developer: string;
+    total: number;
+    completed: number;
+    pending: number;
+    completionPct: number;
+  }[];
+  recentUpdates?: { apiName: string; status: string; lastUpdatedAt: string }[];
+}
+
+export interface AppUser {
+  rowNumber: number;
+  username: string;
+  role: Role;
+  fullName: string;
+  email: string;
+  status: 'Active' | 'Inactive';
+}
+
+export interface ActivityItem {
+  timestamp: string;
+  user: string;
+  apiName: string;
+  field: string;
+  oldValue: string;
+  newValue: string;
+  remarks: string;
+}
+
+export interface DeveloperReportRow {
+  developer: string;
+  total: number;
+  pending: number;
+  completed: number;
+  breached: number;
+  deploymentProgressPct: number;
+  mobileProgressPct: number;
+  webProgressPct: number;
+  completionPct: number;
+}

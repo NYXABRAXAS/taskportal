@@ -1,0 +1,142 @@
+const express = require('express');
+const { readTasks, readUsers } = require('../utils/sheetRepo');
+const { computeBreach, isDueToday } = require('../utils/breach');
+const { requireAuth } = require('../middleware/auth');
+
+const router = express.Router();
+
+function isOwnTask(task, user) {
+  const dev = (task.developer || '').trim().toLowerCase();
+  return (
+    dev === (user.fullName || '').trim().toLowerCase() ||
+    dev === (user.username || '').trim().toLowerCase()
+  );
+}
+
+function pct(done, total) {
+  if (!total) return 0;
+  return Math.round((done / total) * 1000) / 10;
+}
+
+router.get('/', requireAuth, async (req, res, next) => {
+  try {
+    const allTasks = await readTasks();
+    const tasks = req.user.role === 'Admin' ? allTasks : allTasks.filter((t) => isOwnTask(t, req.user));
+
+    const total = tasks.length;
+    const completed = tasks.filter((t) => t.apiStatus === 'Completed').length;
+    const pending = tasks.filter((t) => t.apiStatus !== 'Completed').length;
+
+    const deploymentPending = tasks.filter((t) => t.deploymentStatus !== 'Completed').length;
+    const deploymentCompleted = tasks.filter((t) => t.deploymentStatus === 'Completed').length;
+    const mobilePending = tasks.filter((t) => t.mobileStatus !== 'Completed').length;
+    const mobileCompleted = tasks.filter((t) => t.mobileStatus === 'Completed').length;
+    const webPending = tasks.filter((t) => t.webStatus !== 'Completed').length;
+    const webCompleted = tasks.filter((t) => t.webStatus === 'Completed').length;
+
+    const breached = tasks.filter((t) => {
+      return (
+        computeBreach(t.apiDate, t.apiStatus).breached ||
+        computeBreach(t.deploymentDate, t.deploymentStatus).breached ||
+        computeBreach(t.mobileIntegrationDate, t.mobileStatus).breached ||
+        computeBreach(t.webIntegrationDate, t.webStatus).breached
+      );
+    }).length;
+
+    const dueToday = tasks.filter(
+      (t) =>
+        isDueToday(t.apiDate) ||
+        isDueToday(t.deploymentDate) ||
+        isDueToday(t.mobileIntegrationDate) ||
+        isDueToday(t.webIntegrationDate)
+    ).length;
+
+    const statusPie = {};
+    tasks.forEach((t) => {
+      const s = t.apiStatus || 'Pending';
+      statusPie[s] = (statusPie[s] || 0) + 1;
+    });
+
+    const phaseWise = {};
+    tasks.forEach((t) => {
+      const p = t.phase || 'Unassigned';
+      phaseWise[p] = (phaseWise[p] || 0) + 1;
+    });
+
+    const categoryWise = {};
+    tasks.forEach((t) => {
+      const c = t.category || 'Unassigned';
+      categoryWise[c] = (categoryWise[c] || 0) + 1;
+    });
+
+    const monthly = {};
+    tasks.forEach((t) => {
+      if (!t.apiDate) return;
+      const d = new Date(t.apiDate);
+      if (isNaN(d.getTime())) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthly[key] = monthly[key] || { total: 0, completed: 0 };
+      monthly[key].total += 1;
+      if (t.apiStatus === 'Completed') monthly[key].completed += 1;
+    });
+
+    const base = {
+      totalApis: total,
+      pendingApis: pending,
+      completedApis: completed,
+      deploymentPending,
+      deploymentCompleted,
+      mobilePending,
+      mobileCompleted,
+      webPending,
+      webCompleted,
+      breachedApis: breached,
+      todaysDue: dueToday,
+      completionPct: pct(completed, total),
+      statusPie,
+      phaseWise,
+      categoryWise,
+      monthlyProgress: Object.entries(monthly)
+        .sort(([a], [b]) => (a > b ? 1 : -1))
+        .map(([month, v]) => ({ month, ...v })),
+    };
+
+    if (req.user.role === 'Admin') {
+      const users = await readUsers();
+      const developers = users.filter((u) => u.role === 'Developer');
+
+      const byDeveloper = developers.map((dev) => {
+        const devTasks = allTasks.filter((t) =>
+          (t.developer || '').trim().toLowerCase() === (dev.fullName || '').trim().toLowerCase()
+        );
+        const devCompleted = devTasks.filter((t) => t.apiStatus === 'Completed').length;
+        return {
+          developer: dev.fullName || dev.username,
+          total: devTasks.length,
+          completed: devCompleted,
+          pending: devTasks.length - devCompleted,
+          completionPct: pct(devCompleted, devTasks.length),
+        };
+      });
+
+      base.totalDevelopers = developers.length;
+      base.byDeveloper = byDeveloper;
+    } else {
+      base.recentUpdates = tasks
+        .filter((t) => t.lastUpdatedAt)
+        .sort((a, b) => new Date(b.lastUpdatedAt) - new Date(a.lastUpdatedAt))
+        .slice(0, 8)
+        .map((t) => ({
+          apiName: t.apiName,
+          status: t.apiStatus,
+          lastUpdatedAt: t.lastUpdatedAt,
+        }));
+    }
+
+    res.json(base);
+  } catch (err) {
+    next(err);
+  }
+});
+
+module.exports = router;
