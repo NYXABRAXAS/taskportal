@@ -1,17 +1,10 @@
 const express = require('express');
 const { readTasks, readUsers } = require('../utils/sheetRepo');
 const { computeBreach, isDueToday } = require('../utils/breach');
+const { isEverInvolved, getActiveStages } = require('../utils/stages');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
-
-function isOwnTask(task, user) {
-  const dev = (task.developer || '').trim().toLowerCase();
-  return (
-    dev === (user.fullName || '').trim().toLowerCase() ||
-    dev === (user.username || '').trim().toLowerCase()
-  );
-}
 
 function pct(done, total) {
   if (!total) return 0;
@@ -21,7 +14,10 @@ function pct(done, total) {
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const allTasks = await readTasks();
-    const tasks = req.user.role === 'Admin' ? allTasks : allTasks.filter((t) => isOwnTask(t, req.user));
+    // Lifetime involvement, not just "currently actionable" - a developer's
+    // total shouldn't drop to 0 just because they finished their part and
+    // the ball moved to someone else's stage.
+    const tasks = req.user.role === 'Admin' ? allTasks : allTasks.filter((t) => isEverInvolved(t, req.user));
 
     const total = tasks.length;
     const completed = tasks.filter((t) => t.apiStatus === 'Completed').length;
@@ -121,6 +117,25 @@ router.get('/', requireAuth, async (req, res, next) => {
 
       base.totalDevelopers = developers.length;
       base.byDeveloper = byDeveloper;
+
+      // Who currently has the ball on each not-yet-done API (aggregate view
+      // of "current owner of each pending stage" across the whole pipeline).
+      // A task can count toward more than one person at once now that
+      // Deployment/Mobile/Web run in parallel once API Dev is done.
+      const owners = {};
+      allTasks.forEach((t) => {
+        const activeOwners = new Set(
+          getActiveStages(t)
+            .map((s) => (t[s.ownerKey] || '').trim())
+            .filter(Boolean)
+        );
+        activeOwners.forEach((owner) => {
+          owners[owner] = (owners[owner] || 0) + 1;
+        });
+      });
+      base.currentOwnerBreakdown = Object.entries(owners)
+        .map(([owner, count]) => ({ owner, count }))
+        .sort((a, b) => b.count - a.count);
     } else {
       base.recentUpdates = tasks
         .filter((t) => t.lastUpdatedAt)

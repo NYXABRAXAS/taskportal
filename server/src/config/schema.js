@@ -14,13 +14,15 @@ const TASK_COLUMNS = [
   { key: 'developer', header: "Api's", editableBy: ['Admin'] },
   { key: 'apiStatus', header: 'Status', editableBy: ['Admin', 'Developer'] },
   { key: 'apiDate', header: 'Api Date', editableBy: ['Admin'] },
-  { key: 'deployment', header: 'Deployment', editableBy: ['Admin', 'Developer'] },
+  // deployment/mobileIntegration/webIntegration hold the *assignee name* for
+  // that stage (not free text) - only Admin reassigns who owns a stage.
+  { key: 'deployment', header: 'Deployment', editableBy: ['Admin'] },
   { key: 'deploymentStatus', header: 'Status', editableBy: ['Admin', 'Developer'] },
   { key: 'deploymentDate', header: 'Deployment Date', editableBy: ['Admin', 'Developer'] },
-  { key: 'mobileIntegration', header: 'Mobile Integration', editableBy: ['Admin', 'Developer'] },
+  { key: 'mobileIntegration', header: 'Mobile Integration', editableBy: ['Admin'] },
   { key: 'mobileStatus', header: 'Status', editableBy: ['Admin', 'Developer'] },
   { key: 'mobileIntegrationDate', header: 'Mobile Integration Date', editableBy: ['Admin', 'Developer'] },
-  { key: 'webIntegration', header: 'Web Integration', editableBy: ['Admin', 'Developer'] },
+  { key: 'webIntegration', header: 'Web Integration', editableBy: ['Admin'] },
   { key: 'webStatus', header: 'Status', editableBy: ['Admin', 'Developer'] },
   { key: 'webIntegrationDate', header: 'Web Integration Date', editableBy: ['Admin', 'Developer'] },
   { key: 'remarks', header: 'Remarks', editableBy: ['Admin', 'Developer'] },

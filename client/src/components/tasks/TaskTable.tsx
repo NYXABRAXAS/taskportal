@@ -13,6 +13,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Pencil, Tra
 import { StatusBadge, BreachBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
+import { CurrentOwnerBadge, StageProgressDots } from './StageProgress';
 import { formatDate } from '@/lib/utils';
 import type { Role, Task } from '@/lib/types';
 
@@ -55,6 +56,19 @@ export function TaskTable({
       columnHelper.accessor('phase', { header: 'Phase' }),
       columnHelper.accessor('apiName', { header: 'API Name' }),
       columnHelper.accessor('developer', { header: "Api's" }),
+      columnHelper.display({
+        id: 'currentOwner',
+        header: 'Current Owner',
+        cell: (info) => (
+          <div className="flex flex-col gap-1.5">
+            <CurrentOwnerBadge
+              activeStages={info.row.original.activeStages}
+              allStagesDone={info.row.original.allStagesDone}
+            />
+            <StageProgressDots progress={info.row.original.stageProgress} />
+          </div>
+        ),
+      }),
       columnHelper.accessor('apiStatus', {
         header: 'API Status',
         cell: (info) => (

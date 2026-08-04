@@ -5,9 +5,10 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/Input';
 import { TASK_FIELDS } from '@/lib/taskFields';
-import { toDateInputValue } from '@/lib/utils';
+import { toDateInputValue, matchesUser } from '@/lib/utils';
 import { api, apiErrorMessage, resolveAssetUrl } from '@/lib/api';
 import { useUpdateTask } from '@/hooks/useTasks';
+import { useAuth } from '@/context/AuthContext';
 import type { Role, Task } from '@/lib/types';
 
 export function EditTaskModal({
@@ -29,6 +30,7 @@ export function EditTaskModal({
   const fileRef = useRef<HTMLInputElement>(null);
   const updateTask = useUpdateTask();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (!task) return;
@@ -43,7 +45,18 @@ export function EditTaskModal({
 
   if (!task) return null;
 
-  const editableFields = TASK_FIELDS.filter((f) => f.editableBy.includes(role));
+  // A task can have several stages active at once (Deployment/Mobile/Web run
+  // in parallel once API Dev is done), each possibly owned by a different
+  // person. A Developer may only touch fields for the stage(s) *they*
+  // currently own on this task (plus remarks, which has no stage).
+  const myActiveStages = task.activeStages.filter((s) => user && matchesUser(s.owner, user));
+  const myActiveStageKeys = new Set(myActiveStages.map((s) => s.key));
+
+  const editableFields = TASK_FIELDS.filter((f) => {
+    if (!f.editableBy.includes(role)) return false;
+    if (role === 'Admin') return true;
+    return !f.stage || myActiveStageKeys.has(f.stage);
+  });
 
   async function handleSave() {
     setError('');
@@ -79,6 +92,18 @@ export function EditTaskModal({
 
   return (
     <Modal open={open} onClose={onClose} title={task.apiName || 'Edit Task'} widthClass="max-w-2xl">
+      {role === 'Developer' && (
+        <div className="mb-4 rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
+          {myActiveStages.length > 0 ? (
+            <>
+              Your active stage{myActiveStages.length > 1 ? 's' : ''}:{' '}
+              <span className="font-semibold">{myActiveStages.map((s) => s.label).join(', ')}</span>
+            </>
+          ) : (
+            'This task is not currently in your queue.'
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {editableFields.map((f) => (
           <div key={f.key} className={f.type === 'textarea' ? 'sm:col-span-2' : ''}>

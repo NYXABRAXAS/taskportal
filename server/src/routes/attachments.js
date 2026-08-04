@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { readTasks, writeTaskRow, appendActivity } = require('../utils/sheetRepo');
+const { isCurrentOwner } = require('../utils/stages');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -29,14 +30,6 @@ const upload = multer({
   },
 });
 
-function isOwnTask(task, user) {
-  const dev = (task.developer || '').trim().toLowerCase();
-  return (
-    dev === (user.fullName || '').trim().toLowerCase() ||
-    dev === (user.username || '').trim().toLowerCase()
-  );
-}
-
 router.post('/:rowNumber/attachment', requireAuth, upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
@@ -46,7 +39,7 @@ router.post('/:rowNumber/attachment', requireAuth, upload.single('file'), async 
     const existing = tasks.find((t) => t.rowNumber === rowNumber);
     if (!existing) return res.status(404).json({ message: 'Task not found' });
 
-    if (req.user.role !== 'Admin' && !isOwnTask(existing, req.user)) {
+    if (req.user.role !== 'Admin' && !isCurrentOwner(existing, req.user)) {
       return res.status(403).json({ message: 'Not your task' });
     }
 

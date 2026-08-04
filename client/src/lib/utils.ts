@@ -40,6 +40,12 @@ export function formatDateTime(value: string | undefined | null) {
   });
 }
 
+export function matchesUser(name: string | undefined | null, user: { fullName: string; username: string }) {
+  const n = (name || '').trim().toLowerCase();
+  if (!n) return false;
+  return n === (user.fullName || '').trim().toLowerCase() || n === (user.username || '').trim().toLowerCase();
+}
+
 export function toDateInputValue(sheetValue: string | undefined | null): string {
   if (!sheetValue) return '';
   const s = sheetValue.trim();
@@ -52,13 +58,6 @@ export function toDateInputValue(sheetValue: string | undefined | null): string 
   const d = new Date(s);
   if (isNaN(d.getTime())) return '';
   return d.toISOString().slice(0, 10);
-}
-
-export function isOwnTask(task: { developer: string }, user: { fullName: string; username: string }) {
-  const dev = (task.developer || '').trim().toLowerCase();
-  return (
-    dev === (user.fullName || '').trim().toLowerCase() || dev === (user.username || '').trim().toLowerCase()
-  );
 }
 
 export function initials(name: string) {

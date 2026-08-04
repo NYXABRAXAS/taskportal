@@ -88,6 +88,33 @@ export default function DashboardPage() {
           </Card>
         )}
 
+        {isAdmin && data.currentOwnerBreakdown && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Who Currently Has the Ball</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="mb-1 text-xs text-slate-400">
+                Pending APIs grouped by whoever owns the active stage right now (API Dev, Deployment, Mobile, or Web).
+              </p>
+              {data.currentOwnerBreakdown.length === 0 && (
+                <p className="py-6 text-center text-sm text-slate-400">Nothing pending right now</p>
+              )}
+              {data.currentOwnerBreakdown.map((o) => (
+                <div
+                  key={o.owner}
+                  className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2 text-sm dark:border-slate-800"
+                >
+                  <span className="font-medium text-slate-700 dark:text-slate-200">{o.owner}</span>
+                  <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
+                    {o.count} pending
+                  </span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>Phase Wise APIs</CardTitle>

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { Task } from '@/lib/types';
+import type { StageKey, Task } from '@/lib/types';
 
 interface TasksResponse {
   tasks: Task[];
@@ -62,8 +62,16 @@ export function useDeleteTask() {
 export function useAssignTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ rowNumber, developer }: { rowNumber: number; developer: string }) => {
-      const res = await api.post(`/tasks/${rowNumber}/assign`, { developer });
+    mutationFn: async ({
+      rowNumber,
+      stage,
+      name,
+    }: {
+      rowNumber: number;
+      stage: Exclude<StageKey, 'done'>;
+      name: string;
+    }) => {
+      const res = await api.post(`/tasks/${rowNumber}/assign`, { stage, name });
       return res.data.task;
     },
     onSuccess: () => {

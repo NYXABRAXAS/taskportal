@@ -9,20 +9,20 @@ const {
 } = require('../utils/sheetRepo');
 const { TASK_COLUMNS, STATUS_OPTIONS } = require('../config/schema');
 const { computeBreach, isDueToday } = require('../utils/breach');
+const { STAGES, getActiveStages, getActiveOwnedStages, isCurrentOwner } = require('../utils/stages');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-const EDITABLE_KEYS_BY_ROLE = {
-  Admin: TASK_COLUMNS.map((c) => c.key),
-  Developer: TASK_COLUMNS.filter((c) => c.editableBy.includes('Developer')).map((c) => c.key),
-};
+const ADMIN_EDITABLE_KEYS = TASK_COLUMNS.map((c) => c.key);
 
 function attachComputed(task) {
   const apiBreach = computeBreach(task.apiDate, task.apiStatus);
   const deployBreach = computeBreach(task.deploymentDate, task.deploymentStatus);
   const mobileBreach = computeBreach(task.mobileIntegrationDate, task.mobileStatus);
   const webBreach = computeBreach(task.webIntegrationDate, task.webStatus);
+
+  const active = getActiveStages(task);
 
   return {
     ...task,
@@ -38,22 +38,33 @@ function attachComputed(task) {
       isDueToday(task.deploymentDate) ||
       isDueToday(task.mobileIntegrationDate) ||
       isDueToday(task.webIntegrationDate),
+    activeStages: active.map((s) => ({ key: s.key, label: s.label, owner: task[s.ownerKey] || '' })),
+    allStagesDone: active.length === 0,
+    stageProgress: STAGES.map((s) => ({
+      key: s.key,
+      label: s.label,
+      owner: task[s.ownerKey] || '',
+      status: task[s.statusKey] || 'Pending',
+    })),
   };
 }
 
-function isOwnTask(task, user) {
-  const dev = (task.developer || '').trim().toLowerCase();
-  return (
-    dev === (user.fullName || '').trim().toLowerCase() ||
-    dev === (user.username || '').trim().toLowerCase()
-  );
+// What a Developer may edit on this specific task: the status + date of
+// every stage that's both (a) currently active and (b) owned by them - a
+// person can own two active stages at once (e.g. Deployment AND Mobile),
+// plus remarks/attachment. (They only reach here if isCurrentOwner passed.)
+function developerEditableKeys(task, user) {
+  const owned = getActiveOwnedStages(task, user);
+  const keys = ['remarks', 'attachmentUrl'];
+  owned.forEach((stage) => keys.push(stage.statusKey, stage.dateKey));
+  return keys;
 }
 
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const tasks = await readTasks();
-    const scoped = req.user.role === 'Admin' ? tasks : tasks.filter((t) => isOwnTask(t, req.user));
-    res.json({ tasks: scoped.map(attachComputed), statusOptions: STATUS_OPTIONS });
+    const scoped = req.user.role === 'Admin' ? tasks : tasks.filter((t) => isCurrentOwner(t, req.user));
+    res.json({ tasks: scoped.map(attachComputed), statusOptions: STATUS_OPTIONS, stages: STAGES.map((s) => ({ key: s.key, label: s.label })) });
   } catch (err) {
     next(err);
   }
@@ -65,7 +76,7 @@ router.get('/:rowNumber', requireAuth, async (req, res, next) => {
     const tasks = await readTasks();
     const task = tasks.find((t) => t.rowNumber === rowNumber);
     if (!task) return res.status(404).json({ message: 'Task not found' });
-    if (req.user.role !== 'Admin' && !isOwnTask(task, req.user)) {
+    if (req.user.role !== 'Admin' && !isCurrentOwner(task, req.user)) {
       return res.status(403).json({ message: 'Not your task' });
     }
     res.json({ task: attachComputed(task) });
@@ -112,11 +123,12 @@ router.put('/:rowNumber', requireAuth, async (req, res, next) => {
     const existing = tasks.find((t) => t.rowNumber === rowNumber);
     if (!existing) return res.status(404).json({ message: 'Task not found' });
 
-    if (req.user.role !== 'Admin' && !isOwnTask(existing, req.user)) {
+    const isAdmin = req.user.role === 'Admin';
+    if (!isAdmin && !isCurrentOwner(existing, req.user)) {
       return res.status(403).json({ message: 'Not your task' });
     }
 
-    const allowedKeys = EDITABLE_KEYS_BY_ROLE[req.user.role] || [];
+    const allowedKeys = isAdmin ? ADMIN_EDITABLE_KEYS : developerEditableKeys(existing, req.user);
     const updated = { ...existing };
     const changes = [];
 
@@ -157,17 +169,30 @@ router.put('/:rowNumber', requireAuth, async (req, res, next) => {
   }
 });
 
+const assignSchema = z.object({
+  stage: z.enum(['api', 'deployment', 'mobile', 'web']).default('api'),
+  name: z.string(),
+});
+
 router.post('/:rowNumber/assign', requireAuth, requireRole('Admin'), async (req, res, next) => {
   try {
     const rowNumber = Number(req.params.rowNumber);
-    const { developer } = req.body;
+    const parsed = assignSchema.safeParse({
+      stage: req.body.stage,
+      name: req.body.name ?? req.body.developer, // back-compat with older client payload shape
+    });
+    if (!parsed.success) return res.status(400).json({ message: 'Invalid assignment payload' });
+
+    const { stage: stageKey, name } = parsed.data;
+    const stage = STAGES.find((s) => s.key === stageKey);
+
     const tasks = await readTasks();
     const existing = tasks.find((t) => t.rowNumber === rowNumber);
     if (!existing) return res.status(404).json({ message: 'Task not found' });
 
     const updated = {
       ...existing,
-      developer,
+      [stage.ownerKey]: name,
       lastUpdatedBy: req.user.fullName || req.user.username,
       lastUpdatedAt: new Date().toISOString(),
     };
@@ -176,9 +201,9 @@ router.post('/:rowNumber/assign', requireAuth, requireRole('Admin'), async (req,
       timestamp: new Date().toISOString(),
       user: req.user.fullName || req.user.username,
       apiName: existing.apiName,
-      field: 'developer',
-      oldValue: existing.developer,
-      newValue: developer,
+      field: `${stage.label} assignee`,
+      oldValue: existing[stage.ownerKey],
+      newValue: name,
       remarks: 'Reassigned',
     });
 

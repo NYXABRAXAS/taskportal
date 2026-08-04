@@ -12,6 +12,21 @@ export interface BreachInfo {
   days: number;
 }
 
+export type StageKey = 'api' | 'deployment' | 'mobile' | 'web';
+
+export interface ActiveStage {
+  key: StageKey;
+  label: string;
+  owner: string;
+}
+
+export interface StageProgressItem {
+  key: StageKey;
+  label: string;
+  owner: string;
+  status: string;
+}
+
 export interface Task {
   rowNumber: number;
   serial: string | number;
@@ -42,6 +57,12 @@ export interface Task {
     any: boolean;
   };
   dueToday: boolean;
+  // Stages currently actionable on this task right now. Once API
+  // Development is Completed, Deployment/Mobile/Web all open in parallel -
+  // so this can hold more than one stage (each with its own owner) at once.
+  activeStages: ActiveStage[];
+  allStagesDone: boolean;
+  stageProgress: StageProgressItem[];
 }
 
 export interface DashboardStats {
@@ -70,6 +91,7 @@ export interface DashboardStats {
     completionPct: number;
   }[];
   recentUpdates?: { apiName: string; status: string; lastUpdatedAt: string }[];
+  currentOwnerBreakdown?: { owner: string; count: number }[];
 }
 
 export interface AppUser {

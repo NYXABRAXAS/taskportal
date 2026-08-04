@@ -3,8 +3,12 @@ import { useAuth } from '@/context/AuthContext';
 import { useTasks } from '@/hooks/useTasks';
 import { TaskTable } from '@/components/tasks/TaskTable';
 import { EditTaskModal } from '@/components/tasks/EditTaskModal';
-import { isOwnTask } from '@/lib/utils';
+import { matchesUser } from '@/lib/utils';
 import type { Task } from '@/lib/types';
+
+function isCurrentOwner(task: Task, user: { fullName: string; username: string }) {
+  return task.activeStages.some((s) => matchesUser(s.owner, user));
+}
 
 export default function MyTasksPage() {
   const { user } = useAuth();
@@ -13,7 +17,10 @@ export default function MyTasksPage() {
 
   const myTasks = useMemo(() => {
     if (!data || !user) return [];
-    if (user.role === 'Admin') return data.tasks.filter((t) => isOwnTask(t, user));
+    // Developer scoping already happens server-side (current-stage owner
+    // only). Admin's own "My Tasks" view needs the same filter applied
+    // client-side against the full list the server gives an Admin.
+    if (user.role === 'Admin') return data.tasks.filter((t) => isCurrentOwner(t, user));
     return data.tasks;
   }, [data, user]);
 
