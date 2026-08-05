@@ -14,7 +14,7 @@ import { StatusBadge, BreachBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
 import { CurrentOwnerBadge, StageProgressDots } from './StageProgress';
-import { formatDate, matchesUser } from '@/lib/utils';
+import { formatDate, matchesUser, STATUS_OPTIONS } from '@/lib/utils';
 import { STAGE_LABELS, STAGE_OWNER_KEY } from '@/lib/taskFields';
 import type { Role, StageKey, Task } from '@/lib/types';
 
@@ -234,7 +234,7 @@ export function TaskTable({
         </Select>
         <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="max-w-[160px]">
           <option value="">All Statuses</option>
-          {['Pending', 'In Progress', 'Completed', 'Blocked', 'On Hold'].map((s) => (
+          {STATUS_OPTIONS.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>

@@ -10,7 +10,10 @@ export const STATUS_COLORS: Record<string, string> = {
   Completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
   Blocked: 'bg-slate-200 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
   'On Hold': 'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300',
+  'Not Required': 'bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300',
 };
+
+export const STATUS_OPTIONS = ['Pending', 'In Progress', 'Completed', 'Blocked', 'On Hold', 'Not Required'];
 
 export const STATUS_DOT: Record<string, string> = {
   Pending: 'bg-red-500',
@@ -18,6 +21,7 @@ export const STATUS_DOT: Record<string, string> = {
   Completed: 'bg-emerald-500',
   Blocked: 'bg-slate-500',
   'On Hold': 'bg-purple-500',
+  'Not Required': 'bg-teal-500',
 };
 
 export function formatDate(value: string | undefined | null) {

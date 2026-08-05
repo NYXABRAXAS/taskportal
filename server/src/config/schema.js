@@ -38,7 +38,7 @@ const RANGE_LAST_COLUMN = 'U'; // A..U = 21 columns
 const HEADER_ROW = 1;
 const FIRST_DATA_ROW = 2;
 
-const STATUS_OPTIONS = ['Pending', 'In Progress', 'Completed', 'Blocked', 'On Hold'];
+const STATUS_OPTIONS = ['Pending', 'In Progress', 'Completed', 'Blocked', 'On Hold', 'Not Required'];
 
 const STATUS_COLORS = {
   Pending: '#ef4444',
@@ -46,6 +46,7 @@ const STATUS_COLORS = {
   Completed: '#22c55e',
   Blocked: '#6b7280',
   'On Hold': '#a855f7',
+  'Not Required': '#14b8a6',
 };
 
 const USER_COLUMNS = ['username', 'password', 'role', 'fullName', 'email', 'status'];
