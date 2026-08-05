@@ -53,13 +53,6 @@ function matchesUser(name, user) {
   );
 }
 
-// Every stage (active or not) this task ever assigns to this user -
-// "lifetime involvement", used for total/completed counts that shouldn't
-// vanish once a person's part is done.
-function getAllOwnedStages(task, user) {
-  return STAGES.filter((stage) => matchesUser(task[stage.ownerKey], user));
-}
-
 // Active stages specifically owned by this user right now - this is what
 // makes a task actionable / "currently assigned to them".
 function getActiveOwnedStages(task, user) {
@@ -68,17 +61,6 @@ function getActiveOwnedStages(task, user) {
 
 function isCurrentOwner(task, user) {
   return getActiveOwnedStages(task, user).length > 0;
-}
-
-function isEverInvolved(task, user) {
-  return getAllOwnedStages(task, user).length > 0;
-}
-
-// Every stage owned by this user is Completed (nothing left for them to do
-// on this task, ever).
-function isFullyDoneForUser(task, user) {
-  const owned = getAllOwnedStages(task, user);
-  return owned.length > 0 && owned.every((stage) => task[stage.statusKey] === 'Completed');
 }
 
 // Pending/Completed counts for one specific stage, scoped to only the tasks
@@ -113,11 +95,8 @@ module.exports = {
   STAGES,
   getActiveStages,
   matchesUser,
-  getAllOwnedStages,
   getActiveOwnedStages,
   isCurrentOwner,
-  isEverInvolved,
-  isFullyDoneForUser,
   stageOwnershipStats,
   stageSummary,
 };

@@ -3,7 +3,7 @@ const XLSX = require('xlsx');
 const PDFDocument = require('pdfkit');
 const { readTasks, readUsers } = require('../utils/sheetRepo');
 const { computeBreach } = require('../utils/breach');
-const { isEverInvolved, isFullyDoneForUser, stageOwnershipStats } = require('../utils/stages');
+const { matchesUser, stageOwnershipStats } = require('../utils/stages');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
@@ -19,10 +19,12 @@ async function buildReport() {
 
   return developers.map((dev) => {
     const identity = { fullName: dev.fullName, username: dev.username };
-    // Lifetime involvement (any stage, ever) - matches the dashboard's
-    // definition so the numbers agree everywhere in the app.
-    const devTasks = tasks.filter((t) => isEverInvolved(t, identity));
-    const completed = devTasks.filter((t) => isFullyDoneForUser(t, identity)).length;
+    // Total/Pending/Completed = APIs this person is the API Development
+    // assignee for (the "Api's" column) - one task, one count. Per-stage
+    // columns below are computed separately over the full task list, since
+    // someone can own Deployment/Mobile/Web on an API they didn't author.
+    const devTasks = tasks.filter((t) => matchesUser(t.developer, identity));
+    const completed = devTasks.filter((t) => t.apiStatus === 'Completed').length;
     const pending = devTasks.length - completed;
     const breached = devTasks.filter(
       (t) =>
