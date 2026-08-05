@@ -4,10 +4,15 @@ import { useTasks } from '@/hooks/useTasks';
 import { TaskTable } from '@/components/tasks/TaskTable';
 import { EditTaskModal } from '@/components/tasks/EditTaskModal';
 import { matchesUser } from '@/lib/utils';
-import type { Task } from '@/lib/types';
+import { STAGE_OWNER_KEY } from '@/lib/taskFields';
+import type { StageKey, Task } from '@/lib/types';
 
-function isCurrentOwner(task: Task, user: { fullName: string; username: string }) {
-  return task.activeStages.some((s) => matchesUser(s.owner, user));
+const ALL_STAGES: StageKey[] = ['api', 'deployment', 'mobile', 'web'];
+
+// Lifetime involvement (author OR ever assigned to any stage) - broader than
+// isCurrentOwner, so completed/historical work stays visible and filterable.
+function isEverInvolved(task: Task, user: { fullName: string; username: string }) {
+  return ALL_STAGES.some((stage) => matchesUser(task[STAGE_OWNER_KEY[stage]] as string, user));
 }
 
 export default function MyTasksPage() {
@@ -17,10 +22,10 @@ export default function MyTasksPage() {
 
   const myTasks = useMemo(() => {
     if (!data || !user) return [];
-    // Developer scoping already happens server-side (current-stage owner
-    // only). Admin's own "My Tasks" view needs the same filter applied
-    // client-side against the full list the server gives an Admin.
-    if (user.role === 'Admin') return data.tasks.filter((t) => isCurrentOwner(t, user));
+    // Developer scoping already happens server-side. Admin's own "My Tasks"
+    // view needs the same filter applied client-side against the full list
+    // the server gives an Admin.
+    if (user.role === 'Admin') return data.tasks.filter((t) => isEverInvolved(t, user));
     return data.tasks;
   }, [data, user]);
 

@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
 import { CurrentOwnerBadge, StageProgressDots } from './StageProgress';
 import { formatDate, matchesUser } from '@/lib/utils';
-import { STAGE_LABELS } from '@/lib/taskFields';
+import { STAGE_LABELS, STAGE_OWNER_KEY } from '@/lib/taskFields';
 import type { Role, StageKey, Task } from '@/lib/types';
 
 const columnHelper = createColumnHelper<Task>();
@@ -77,8 +77,9 @@ export function TaskTable({
         if (!owners.includes(u)) return false;
       }
       if (taskTypeFilter && viewerUser) {
-        const owns = t.activeStages.some((s) => s.key === taskTypeFilter && matchesUser(s.owner, viewerUser));
-        if (!owns) return false;
+        // Match the raw assignee field, not just currently-active stages -
+        // "show me my Deployment work" should include completed history too.
+        if (!matchesUser(t[STAGE_OWNER_KEY[taskTypeFilter]] as string, viewerUser)) return false;
       }
       return true;
     });
@@ -150,38 +151,46 @@ export function TaskTable({
       columnHelper.display({
         id: 'actions',
         header: 'Action',
-        cell: (info) => (
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => onEdit(info.row.original)}
-              className="rounded-lg p-1.5 text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-500/10"
-              title="Edit"
-            >
-              <Pencil size={15} />
-            </button>
-            {role === 'Admin' && onAssign && (
+        cell: (info) => {
+          const task = info.row.original;
+          // A developer can view every task they're ever involved in, but
+          // can only edit while it's actually their active turn.
+          const actionable =
+            role === 'Admin' || !viewerUser || task.activeStages.some((s) => matchesUser(s.owner, viewerUser));
+          return (
+            <div className="flex items-center gap-1.5">
               <button
-                onClick={() => onAssign(info.row.original)}
-                className="rounded-lg p-1.5 text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-500/10"
-                title="Reassign"
+                onClick={() => actionable && onEdit(task)}
+                disabled={!actionable}
+                className="rounded-lg p-1.5 text-brand-600 hover:bg-brand-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-transparent dark:text-brand-400 dark:hover:bg-brand-500/10 dark:disabled:text-slate-700"
+                title={actionable ? 'Edit' : 'Not currently your turn on this task'}
               >
-                <UserCog size={15} />
+                <Pencil size={15} />
               </button>
-            )}
-            {role === 'Admin' && onDelete && (
-              <button
-                onClick={() => onDelete(info.row.original)}
-                className="rounded-lg p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
-                title="Delete"
-              >
-                <Trash2 size={15} />
-              </button>
-            )}
-          </div>
-        ),
+              {role === 'Admin' && onAssign && (
+                <button
+                  onClick={() => onAssign(task)}
+                  className="rounded-lg p-1.5 text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-500/10"
+                  title="Reassign"
+                >
+                  <UserCog size={15} />
+                </button>
+              )}
+              {role === 'Admin' && onDelete && (
+                <button
+                  onClick={() => onDelete(task)}
+                  className="rounded-lg p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+                  title="Delete"
+                >
+                  <Trash2 size={15} />
+                </button>
+              )}
+            </div>
+          );
+        },
       }),
     ],
-    [role, onEdit, onDelete, onAssign]
+    [role, onEdit, onDelete, onAssign, viewerUser]
   );
 
   const table = useReactTable({

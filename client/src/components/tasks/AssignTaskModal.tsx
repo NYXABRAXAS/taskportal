@@ -4,15 +4,8 @@ import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
 import { apiErrorMessage } from '@/lib/api';
 import { useAssignTask } from '@/hooks/useTasks';
-import { STAGE_LABELS } from '@/lib/taskFields';
+import { STAGE_LABELS, STAGE_OWNER_KEY } from '@/lib/taskFields';
 import type { StageKey, Task } from '@/lib/types';
-
-const STAGE_OWNER_KEY: Record<StageKey, keyof Task> = {
-  api: 'developer',
-  deployment: 'deployment',
-  mobile: 'mobileIntegration',
-  web: 'webIntegration',
-};
 
 export function AssignTaskModal({ task, open, onClose }: { task: Task | null; open: boolean; onClose: () => void }) {
   const [stage, setStage] = useState<StageKey>('api');

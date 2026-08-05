@@ -5,7 +5,7 @@ const { parse } = require('csv-parse/sync');
 const PDFDocument = require('pdfkit');
 const { readTasks, replaceAllTasks, appendActivity } = require('../utils/sheetRepo');
 const { TASK_COLUMNS } = require('../config/schema');
-const { isCurrentOwner } = require('../utils/stages');
+const { isEverInvolved } = require('../utils/stages');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
@@ -73,7 +73,7 @@ router.get('/export/:format', requireAuth, async (req, res, next) => {
   try {
     const { format } = req.params;
     const all = await readTasks();
-    const tasks = req.user.role === 'Admin' ? all : all.filter((t) => isCurrentOwner(t, req.user));
+    const tasks = req.user.role === 'Admin' ? all : all.filter((t) => isEverInvolved(t, req.user));
 
     const header = TASK_COLUMNS.map((c) => c.header);
     const rows = tasks.map((t) => TASK_COLUMNS.map((c) => t[c.key] ?? ''));

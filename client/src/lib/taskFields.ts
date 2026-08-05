@@ -1,4 +1,4 @@
-import type { StageKey } from './types';
+import type { StageKey, Task } from './types';
 
 export type FieldType = 'text' | 'select' | 'date' | 'textarea';
 
@@ -37,4 +37,12 @@ export const STAGE_LABELS: Record<StageKey, string> = {
   deployment: 'Deployment',
   mobile: 'Mobile Integration',
   web: 'Web Integration',
+};
+
+// Which raw Task field holds the assignee name for each stage.
+export const STAGE_OWNER_KEY: Record<StageKey, keyof Task> = {
+  api: 'developer',
+  deployment: 'deployment',
+  mobile: 'mobileIntegration',
+  web: 'webIntegration',
 };

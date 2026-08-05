@@ -9,7 +9,7 @@ const {
 } = require('../utils/sheetRepo');
 const { TASK_COLUMNS, STATUS_OPTIONS } = require('../config/schema');
 const { computeBreach, isDueToday } = require('../utils/breach');
-const { STAGES, getActiveStages, getActiveOwnedStages, isCurrentOwner } = require('../utils/stages');
+const { STAGES, getActiveStages, getActiveOwnedStages, isCurrentOwner, isEverInvolved } = require('../utils/stages');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
@@ -63,7 +63,11 @@ function developerEditableKeys(task, user) {
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const tasks = await readTasks();
-    const scoped = req.user.role === 'Admin' ? tasks : tasks.filter((t) => isCurrentOwner(t, req.user));
+    // Visibility is broader than editability: show everything the developer
+    // has ever been involved in (so completed work stays visible/filterable
+    // in "My Tasks"), while PUT below still only allows edits while it's
+    // actually their active turn.
+    const scoped = req.user.role === 'Admin' ? tasks : tasks.filter((t) => isEverInvolved(t, req.user));
     res.json({ tasks: scoped.map(attachComputed), statusOptions: STATUS_OPTIONS, stages: STAGES.map((s) => ({ key: s.key, label: s.label })) });
   } catch (err) {
     next(err);
@@ -76,7 +80,7 @@ router.get('/:rowNumber', requireAuth, async (req, res, next) => {
     const tasks = await readTasks();
     const task = tasks.find((t) => t.rowNumber === rowNumber);
     if (!task) return res.status(404).json({ message: 'Task not found' });
-    if (req.user.role !== 'Admin' && !isCurrentOwner(task, req.user)) {
+    if (req.user.role !== 'Admin' && !isEverInvolved(task, req.user)) {
       return res.status(403).json({ message: 'Not your task' });
     }
     res.json({ task: attachComputed(task) });

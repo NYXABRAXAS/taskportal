@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/Badge';
 import { formatDate, matchesUser } from '@/lib/utils';
+import { STAGE_OWNER_KEY } from '@/lib/taskFields';
 import type { DeveloperReportRow, StageKey, Task } from '@/lib/types';
 
 async function downloadReport(format: 'excel' | 'pdf') {
@@ -21,12 +22,6 @@ async function downloadReport(format: 'excel' | 'pdf') {
   URL.revokeObjectURL(url);
 }
 
-const STAGE_OWNER_KEY: Record<StageKey, keyof Task> = {
-  api: 'developer',
-  deployment: 'deployment',
-  mobile: 'mobileIntegration',
-  web: 'webIntegration',
-};
 const STAGE_STATUS_KEY: Record<StageKey, keyof Task> = {
   api: 'apiStatus',
   deployment: 'deploymentStatus',

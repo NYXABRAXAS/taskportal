@@ -63,6 +63,15 @@ function isCurrentOwner(task, user) {
   return getActiveOwnedStages(task, user).length > 0;
 }
 
+// Every stage (active or not, done or not) this task ever assigns to this
+// user. Used for *visibility* - a developer should still be able to see and
+// filter their own completed work, even though it's no longer actionable
+// for them (isCurrentOwner). Keep this distinct from isCurrentOwner, which
+// gates what they're allowed to edit right now.
+function isEverInvolved(task, user) {
+  return STAGES.some((stage) => matchesUser(task[stage.ownerKey], user));
+}
+
 // Pending/Completed counts for one specific stage, scoped to only the tasks
 // where this user actually owns THAT stage - not their whole lifetime task
 // list. Someone owning Deployment on 8 APIs should show 8 here even if
@@ -97,6 +106,7 @@ module.exports = {
   matchesUser,
   getActiveOwnedStages,
   isCurrentOwner,
+  isEverInvolved,
   stageOwnershipStats,
   stageSummary,
 };
