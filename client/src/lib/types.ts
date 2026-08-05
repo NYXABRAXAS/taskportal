@@ -119,6 +119,14 @@ export interface DeveloperReportRow {
   pending: number;
   completed: number;
   breached: number;
+  apiDevPending: number;
+  apiDevCompleted: number;
+  deploymentPending: number;
+  deploymentCompleted: number;
+  mobilePending: number;
+  mobileCompleted: number;
+  webPending: number;
+  webCompleted: number;
   deploymentProgressPct: number;
   mobileProgressPct: number;
   webProgressPct: number;

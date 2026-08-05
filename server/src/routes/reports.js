@@ -3,6 +3,7 @@ const XLSX = require('xlsx');
 const PDFDocument = require('pdfkit');
 const { readTasks, readUsers } = require('../utils/sheetRepo');
 const { computeBreach } = require('../utils/breach');
+const { isEverInvolved, isFullyDoneForUser, stageOwnershipStats } = require('../utils/stages');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
@@ -17,11 +18,11 @@ async function buildReport() {
   const developers = users.filter((u) => u.role === 'Developer');
 
   return developers.map((dev) => {
-    const name = (dev.fullName || dev.username || '').trim();
-    const devTasks = tasks.filter(
-      (t) => (t.developer || '').trim().toLowerCase() === name.toLowerCase()
-    );
-    const completed = devTasks.filter((t) => t.apiStatus === 'Completed').length;
+    const identity = { fullName: dev.fullName, username: dev.username };
+    // Lifetime involvement (any stage, ever) - matches the dashboard's
+    // definition so the numbers agree everywhere in the app.
+    const devTasks = tasks.filter((t) => isEverInvolved(t, identity));
+    const completed = devTasks.filter((t) => isFullyDoneForUser(t, identity)).length;
     const pending = devTasks.length - completed;
     const breached = devTasks.filter(
       (t) =>
@@ -30,19 +31,31 @@ async function buildReport() {
         computeBreach(t.mobileIntegrationDate, t.mobileStatus).breached ||
         computeBreach(t.webIntegrationDate, t.webStatus).breached
     ).length;
-    const deploymentDone = devTasks.filter((t) => t.deploymentStatus === 'Completed').length;
-    const mobileDone = devTasks.filter((t) => t.mobileStatus === 'Completed').length;
-    const webDone = devTasks.filter((t) => t.webStatus === 'Completed').length;
+
+    // Per-stage counts scoped to only the tasks where this person actually
+    // owns THAT stage - not their whole lifetime task list.
+    const apiDev = stageOwnershipStats(tasks, identity, 'api');
+    const deployment = stageOwnershipStats(tasks, identity, 'deployment');
+    const mobile = stageOwnershipStats(tasks, identity, 'mobile');
+    const web = stageOwnershipStats(tasks, identity, 'web');
 
     return {
-      developer: name,
+      developer: dev.fullName || dev.username,
       total: devTasks.length,
       pending,
       completed,
       breached,
-      deploymentProgressPct: pct(deploymentDone, devTasks.length),
-      mobileProgressPct: pct(mobileDone, devTasks.length),
-      webProgressPct: pct(webDone, devTasks.length),
+      apiDevPending: apiDev.pending,
+      apiDevCompleted: apiDev.completed,
+      deploymentPending: deployment.pending,
+      deploymentCompleted: deployment.completed,
+      mobilePending: mobile.pending,
+      mobileCompleted: mobile.completed,
+      webPending: web.pending,
+      webCompleted: web.completed,
+      deploymentProgressPct: pct(deployment.completed, deployment.total),
+      mobileProgressPct: pct(mobile.completed, mobile.total),
+      webProgressPct: pct(web.completed, web.total),
       completionPct: pct(completed, devTasks.length),
     };
   });
@@ -85,12 +98,23 @@ router.get('/pdf', requireAuth, requireRole('Admin'), async (req, res, next) => 
     doc.fontSize(18).text('Developer Wise Report', { align: 'center' });
     doc.moveDown();
 
-    const headers = ['Developer', 'Total', 'Pending', 'Completed', 'Breached', 'Deploy %', 'Mobile %', 'Web %', 'Completion %'];
-    const colWidths = [140, 60, 70, 80, 70, 70, 70, 70, 90];
+    const headers = [
+      'Developer',
+      'Total',
+      'Pending',
+      'Completed',
+      'Breached',
+      'API Dev Pend.',
+      'Deploy Pend.',
+      'Mobile Pend.',
+      'Web Pend.',
+      'Completion %',
+    ];
+    const colWidths = [110, 45, 55, 60, 55, 65, 60, 60, 55, 70];
     let y = doc.y;
     let x = doc.x;
 
-    doc.fontSize(10).font('Helvetica-Bold');
+    doc.fontSize(9).font('Helvetica-Bold');
     headers.forEach((h, i) => {
       doc.text(h, x, y, { width: colWidths[i] });
       x += colWidths[i];
@@ -108,9 +132,10 @@ router.get('/pdf', requireAuth, requireRole('Admin'), async (req, res, next) => 
         r.pending,
         r.completed,
         r.breached,
-        `${r.deploymentProgressPct}%`,
-        `${r.mobileProgressPct}%`,
-        `${r.webProgressPct}%`,
+        r.apiDevPending,
+        r.deploymentPending,
+        r.mobilePending,
+        r.webPending,
         `${r.completionPct}%`,
       ];
       row.forEach((val, i) => {

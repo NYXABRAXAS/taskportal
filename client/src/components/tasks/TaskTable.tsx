@@ -14,8 +14,9 @@ import { StatusBadge, BreachBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
 import { CurrentOwnerBadge, StageProgressDots } from './StageProgress';
-import { formatDate } from '@/lib/utils';
-import type { Role, Task } from '@/lib/types';
+import { formatDate, matchesUser } from '@/lib/utils';
+import { STAGE_LABELS } from '@/lib/taskFields';
+import type { Role, StageKey, Task } from '@/lib/types';
 
 const columnHelper = createColumnHelper<Task>();
 
@@ -25,30 +26,63 @@ export function TaskTable({
   onEdit,
   onDelete,
   onAssign,
+  viewerUser,
 }: {
   tasks: Task[];
   role: Role;
   onEdit: (task: Task) => void;
   onDelete?: (task: Task) => void;
   onAssign?: (task: Task) => void;
+  // When set, shows a "Task Type" filter scoped to this specific person's
+  // own active stages (used on My Tasks - "show me only my Deployment work").
+  viewerUser?: { fullName: string; username: string };
 }) {
   const [globalFilter, setGlobalFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [phaseFilter, setPhaseFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [userFilter, setUserFilter] = useState('');
+  const [taskTypeFilter, setTaskTypeFilter] = useState<StageKey | ''>('');
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const categories = useMemo(() => [...new Set(tasks.map((t) => t.category).filter(Boolean))].sort(), [tasks]);
   const phases = useMemo(() => [...new Set(tasks.map((t) => t.phase).filter(Boolean))].sort(), [tasks]);
+  // Anyone assigned to any stage (API Dev, Deployment, Mobile, Web) - lets
+  // Admin filter the whole list down to "everything touching this person".
+  const users = useMemo(() => {
+    // Dedupe case-insensitively (the sheet has inconsistent casing like
+    // "Shiv" vs "shiv" for the same person) - keep first-seen casing.
+    const byLowerCase = new Map<string, string>();
+    tasks.forEach((t) => {
+      [t.developer, t.deployment, t.mobileIntegration, t.webIntegration].forEach((n) => {
+        const trimmed = (n || '').trim();
+        if (trimmed && !byLowerCase.has(trimmed.toLowerCase())) {
+          byLowerCase.set(trimmed.toLowerCase(), trimmed);
+        }
+      });
+    });
+    return [...byLowerCase.values()].sort((a, b) => a.localeCompare(b));
+  }, [tasks]);
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
       if (categoryFilter && t.category !== categoryFilter) return false;
       if (phaseFilter && t.phase !== phaseFilter) return false;
       if (statusFilter && t.apiStatus !== statusFilter) return false;
+      if (userFilter) {
+        const u = userFilter.trim().toLowerCase();
+        const owners = [t.developer, t.deployment, t.mobileIntegration, t.webIntegration].map((n) =>
+          (n || '').trim().toLowerCase()
+        );
+        if (!owners.includes(u)) return false;
+      }
+      if (taskTypeFilter && viewerUser) {
+        const owns = t.activeStages.some((s) => s.key === taskTypeFilter && matchesUser(s.owner, viewerUser));
+        if (!owns) return false;
+      }
       return true;
     });
-  }, [tasks, categoryFilter, phaseFilter, statusFilter]);
+  }, [tasks, categoryFilter, phaseFilter, statusFilter, userFilter, taskTypeFilter, viewerUser]);
 
   const columns = useMemo(
     () => [
@@ -61,10 +95,7 @@ export function TaskTable({
         header: 'Current Owner',
         cell: (info) => (
           <div className="flex flex-col gap-1.5">
-            <CurrentOwnerBadge
-              activeStages={info.row.original.activeStages}
-              allStagesDone={info.row.original.allStagesDone}
-            />
+            <CurrentOwnerBadge task={info.row.original} />
             <StageProgressDots progress={info.row.original.stageProgress} />
           </div>
         ),
@@ -199,6 +230,29 @@ export function TaskTable({
             </option>
           ))}
         </Select>
+        {viewerUser ? (
+          <Select
+            value={taskTypeFilter}
+            onChange={(e) => setTaskTypeFilter(e.target.value as StageKey | '')}
+            className="max-w-[180px]"
+          >
+            <option value="">All Task Types</option>
+            {(Object.keys(STAGE_LABELS) as StageKey[]).map((key) => (
+              <option key={key} value={key}>
+                {STAGE_LABELS[key]}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <Select value={userFilter} onChange={(e) => setUserFilter(e.target.value)} className="max-w-[160px]">
+            <option value="">All Users</option>
+            {users.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </Select>
+        )}
         <span className="ml-auto text-xs text-slate-400">{filtered.length} of {tasks.length} APIs</span>
       </div>
 

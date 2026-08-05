@@ -5,10 +5,11 @@ import { api } from '@/lib/api';
 import { useTasks } from '@/hooks/useTasks';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Select } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/Badge';
-import { formatDate } from '@/lib/utils';
-import type { DeveloperReportRow, Task } from '@/lib/types';
+import { formatDate, matchesUser } from '@/lib/utils';
+import type { DeveloperReportRow, StageKey, Task } from '@/lib/types';
 
 async function downloadReport(format: 'excel' | 'pdf') {
   const res = await api.get(`/reports/${format}`, { responseType: 'blob' });
@@ -20,7 +21,20 @@ async function downloadReport(format: 'excel' | 'pdf') {
   URL.revokeObjectURL(url);
 }
 
-type DrillType = 'total' | 'pending' | 'completed';
+const STAGE_OWNER_KEY: Record<StageKey, keyof Task> = {
+  api: 'developer',
+  deployment: 'deployment',
+  mobile: 'mobileIntegration',
+  web: 'webIntegration',
+};
+const STAGE_STATUS_KEY: Record<StageKey, keyof Task> = {
+  api: 'apiStatus',
+  deployment: 'deploymentStatus',
+  mobile: 'mobileStatus',
+  web: 'webStatus',
+};
+
+type DrillType = 'total' | 'pending' | 'completed' | StageKey;
 
 export default function ReportsPage() {
   const { data, isLoading } = useQuery({
@@ -32,15 +46,38 @@ export default function ReportsPage() {
   });
   const { data: taskData } = useTasks();
 
+  const [developerFilter, setDeveloperFilter] = useState('');
   const [drillDown, setDrillDown] = useState<{ developer: string; type: DrillType } | null>(null);
 
-  const tasksByDeveloper = useMemo(() => {
+  const visibleRows = useMemo(() => {
+    if (!data) return [];
+    if (!developerFilter) return data;
+    return data.filter((r) => r.developer === developerFilter);
+  }, [data, developerFilter]);
+
+  const drillTasks = useMemo(() => {
     if (!drillDown || !taskData) return [];
-    const devLower = drillDown.developer.trim().toLowerCase();
-    const devTasks = taskData.tasks.filter((t) => (t.developer || '').trim().toLowerCase() === devLower);
-    if (drillDown.type === 'pending') return devTasks.filter((t) => t.apiStatus !== 'Completed');
-    if (drillDown.type === 'completed') return devTasks.filter((t) => t.apiStatus === 'Completed');
-    return devTasks;
+    const identity = { fullName: drillDown.developer, username: drillDown.developer };
+
+    if (drillDown.type === 'total' || drillDown.type === 'pending' || drillDown.type === 'completed') {
+      const involved = taskData.tasks.filter((t) =>
+        (['api', 'deployment', 'mobile', 'web'] as StageKey[]).some((s) => matchesUser(t[STAGE_OWNER_KEY[s]] as string, identity))
+      );
+      if (drillDown.type === 'total') return involved;
+      return involved.filter((t) => {
+        const owned = (['api', 'deployment', 'mobile', 'web'] as StageKey[]).filter((s) =>
+          matchesUser(t[STAGE_OWNER_KEY[s]] as string, identity)
+        );
+        const fullyDone = owned.length > 0 && owned.every((s) => t[STAGE_STATUS_KEY[s]] === 'Completed');
+        return drillDown.type === 'completed' ? fullyDone : !fullyDone;
+      });
+    }
+
+    // Stage-specific pending drill-down (apiDevPending / deploymentPending / etc.)
+    const stage = drillDown.type;
+    return taskData.tasks.filter(
+      (t) => matchesUser(t[STAGE_OWNER_KEY[stage]] as string, identity) && t[STAGE_STATUS_KEY[stage]] !== 'Completed'
+    );
   }, [drillDown, taskData]);
 
   if (isLoading || !data) {
@@ -51,23 +88,52 @@ export default function ReportsPage() {
     );
   }
 
-  const drillTitle =
-    drillDown &&
-    `${drillDown.developer} — ${drillDown.type === 'total' ? 'All APIs' : drillDown.type === 'pending' ? 'Pending APIs' : 'Completed APIs'}`;
+  const drillTitleMap: Record<DrillType, string> = {
+    total: 'All APIs',
+    pending: 'Pending APIs',
+    completed: 'Completed APIs',
+    api: 'API Development Pending',
+    deployment: 'Deployment Pending',
+    mobile: 'Mobile Integration Pending',
+    web: 'Web Integration Pending',
+  };
+  const drillTitle = drillDown && `${drillDown.developer} — ${drillTitleMap[drillDown.type]}`;
+
+  function Cell({ value, developer, type }: { value: number; developer: string; type: DrillType }) {
+    return (
+      <button
+        className="underline-offset-2 hover:underline disabled:no-underline disabled:opacity-60"
+        onClick={() => setDrillDown({ developer, type })}
+        disabled={value === 0}
+      >
+        {value}
+      </button>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={() => downloadReport('excel')}>
-          <Download size={14} /> Excel
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => downloadReport('pdf')}>
-          <Download size={14} /> PDF
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Select value={developerFilter} onChange={(e) => setDeveloperFilter(e.target.value)} className="max-w-[220px]">
+          <option value="">All Developers</option>
+          {data.map((r) => (
+            <option key={r.developer} value={r.developer}>
+              {r.developer}
+            </option>
+          ))}
+        </Select>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => downloadReport('excel')}>
+            <Download size={14} /> Excel
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => downloadReport('pdf')}>
+            <Download size={14} /> PDF
+          </Button>
+        </div>
       </div>
 
       <Card className="overflow-x-auto p-0">
-        <table className="w-full min-w-[800px] text-sm">
+        <table className="w-full min-w-[1100px] text-sm">
           <thead className="bg-slate-50 dark:bg-slate-900">
             <tr className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400">
               <th className="px-4 py-3">Developer</th>
@@ -75,53 +141,45 @@ export default function ReportsPage() {
               <th className="px-4 py-3">Pending</th>
               <th className="px-4 py-3">Completed</th>
               <th className="px-4 py-3">Breached</th>
-              <th className="px-4 py-3">Deployment %</th>
-              <th className="px-4 py-3">Mobile %</th>
-              <th className="px-4 py-3">Web %</th>
+              <th className="px-4 py-3">API Dev Pending</th>
+              <th className="px-4 py-3">Deploy Pending</th>
+              <th className="px-4 py-3">Mobile Pending</th>
+              <th className="px-4 py-3">Web Pending</th>
               <th className="px-4 py-3">Completion %</th>
             </tr>
           </thead>
           <tbody>
-            {data.map((r) => (
+            {visibleRows.map((r) => (
               <tr key={r.developer} className="border-t border-slate-100 dark:border-slate-800">
                 <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">{r.developer}</td>
                 <td className="px-4 py-3">
-                  <button
-                    className="underline-offset-2 hover:underline disabled:no-underline disabled:opacity-60"
-                    onClick={() => setDrillDown({ developer: r.developer, type: 'total' })}
-                    disabled={r.total === 0}
-                  >
-                    {r.total}
-                  </button>
+                  <Cell value={r.total} developer={r.developer} type="total" />
                 </td>
                 <td className="px-4 py-3 text-red-600 dark:text-red-400">
-                  <button
-                    className="underline-offset-2 hover:underline disabled:no-underline disabled:opacity-60"
-                    onClick={() => setDrillDown({ developer: r.developer, type: 'pending' })}
-                    disabled={r.pending === 0}
-                  >
-                    {r.pending}
-                  </button>
+                  <Cell value={r.pending} developer={r.developer} type="pending" />
                 </td>
                 <td className="px-4 py-3 text-emerald-600 dark:text-emerald-400">
-                  <button
-                    className="underline-offset-2 hover:underline disabled:no-underline disabled:opacity-60"
-                    onClick={() => setDrillDown({ developer: r.developer, type: 'completed' })}
-                    disabled={r.completed === 0}
-                  >
-                    {r.completed}
-                  </button>
+                  <Cell value={r.completed} developer={r.developer} type="completed" />
                 </td>
                 <td className="px-4 py-3 text-red-600 dark:text-red-400">{r.breached}</td>
-                <td className="px-4 py-3">{r.deploymentProgressPct}%</td>
-                <td className="px-4 py-3">{r.mobileProgressPct}%</td>
-                <td className="px-4 py-3">{r.webProgressPct}%</td>
+                <td className="px-4 py-3">
+                  <Cell value={r.apiDevPending} developer={r.developer} type="api" />
+                </td>
+                <td className="px-4 py-3">
+                  <Cell value={r.deploymentPending} developer={r.developer} type="deployment" />
+                </td>
+                <td className="px-4 py-3">
+                  <Cell value={r.mobilePending} developer={r.developer} type="mobile" />
+                </td>
+                <td className="px-4 py-3">
+                  <Cell value={r.webPending} developer={r.developer} type="web" />
+                </td>
                 <td className="px-4 py-3 font-semibold text-brand-600 dark:text-brand-400">{r.completionPct}%</td>
               </tr>
             ))}
-            {data.length === 0 && (
+            {visibleRows.length === 0 && (
               <tr>
-                <td colSpan={9} className="py-10 text-center text-sm text-slate-400">
+                <td colSpan={10} className="py-10 text-center text-sm text-slate-400">
                   No developers found
                 </td>
               </tr>
@@ -132,8 +190,8 @@ export default function ReportsPage() {
 
       <Modal open={!!drillDown} onClose={() => setDrillDown(null)} title={drillTitle || ''} widthClass="max-w-2xl">
         <div className="max-h-[60vh] space-y-2 overflow-y-auto">
-          {tasksByDeveloper.length === 0 && <p className="py-8 text-center text-sm text-slate-400">No APIs found</p>}
-          {tasksByDeveloper.map((t: Task) => (
+          {drillTasks.length === 0 && <p className="py-8 text-center text-sm text-slate-400">No APIs found</p>}
+          {drillTasks.map((t) => (
             <div
               key={t.rowNumber}
               className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2.5 dark:border-slate-800"

@@ -34,7 +34,7 @@ export default function MyTasksPage() {
 
   return (
     <div className="space-y-4">
-      <TaskTable tasks={myTasks} role={user.role} onEdit={setEditing} />
+      <TaskTable tasks={myTasks} role={user.role} onEdit={setEditing} viewerUser={user} />
       <EditTaskModal
         task={editing}
         role={user.role}

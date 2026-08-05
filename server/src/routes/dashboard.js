@@ -1,7 +1,7 @@
 const express = require('express');
 const { readTasks, readUsers } = require('../utils/sheetRepo');
 const { computeBreach, isDueToday } = require('../utils/breach');
-const { isEverInvolved, getActiveStages } = require('../utils/stages');
+const { isEverInvolved, isFullyDoneForUser, getActiveStages, stageOwnershipStats } = require('../utils/stages');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -14,21 +14,48 @@ function pct(done, total) {
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const allTasks = await readTasks();
-    // Lifetime involvement, not just "currently actionable" - a developer's
-    // total shouldn't drop to 0 just because they finished their part and
-    // the ball moved to someone else's stage.
-    const tasks = req.user.role === 'Admin' ? allTasks : allTasks.filter((t) => isEverInvolved(t, req.user));
+    const isAdmin = req.user.role === 'Admin';
+
+    // Admin: company-wide totals over every task. Developer: lifetime
+    // involvement only (any stage, ever) - total shouldn't drop to 0 just
+    // because they finished their part and the ball moved on.
+    const tasks = isAdmin ? allTasks : allTasks.filter((t) => isEverInvolved(t, req.user));
 
     const total = tasks.length;
-    const completed = tasks.filter((t) => t.apiStatus === 'Completed').length;
-    const pending = tasks.filter((t) => t.apiStatus !== 'Completed').length;
+    let completed;
+    let pending;
+    let deploymentPending;
+    let deploymentCompleted;
+    let mobilePending;
+    let mobileCompleted;
+    let webPending;
+    let webCompleted;
 
-    const deploymentPending = tasks.filter((t) => t.deploymentStatus !== 'Completed').length;
-    const deploymentCompleted = tasks.filter((t) => t.deploymentStatus === 'Completed').length;
-    const mobilePending = tasks.filter((t) => t.mobileStatus !== 'Completed').length;
-    const mobileCompleted = tasks.filter((t) => t.mobileStatus === 'Completed').length;
-    const webPending = tasks.filter((t) => t.webStatus !== 'Completed').length;
-    const webCompleted = tasks.filter((t) => t.webStatus === 'Completed').length;
+    if (isAdmin) {
+      completed = tasks.filter((t) => t.apiStatus === 'Completed').length;
+      pending = total - completed;
+      deploymentPending = tasks.filter((t) => t.deploymentStatus !== 'Completed').length;
+      deploymentCompleted = tasks.filter((t) => t.deploymentStatus === 'Completed').length;
+      mobilePending = tasks.filter((t) => t.mobileStatus !== 'Completed').length;
+      mobileCompleted = tasks.filter((t) => t.mobileStatus === 'Completed').length;
+      webPending = tasks.filter((t) => t.webStatus !== 'Completed').length;
+      webCompleted = tasks.filter((t) => t.webStatus === 'Completed').length;
+    } else {
+      // "Completed" for a person means every stage THEY own on that task is
+      // Completed - not just the API Development status.
+      completed = tasks.filter((t) => isFullyDoneForUser(t, req.user)).length;
+      pending = total - completed;
+
+      const deploy = stageOwnershipStats(tasks, req.user, 'deployment');
+      const mobile = stageOwnershipStats(tasks, req.user, 'mobile');
+      const web = stageOwnershipStats(tasks, req.user, 'web');
+      deploymentPending = deploy.pending;
+      deploymentCompleted = deploy.completed;
+      mobilePending = mobile.pending;
+      mobileCompleted = mobile.completed;
+      webPending = web.pending;
+      webCompleted = web.completed;
+    }
 
     const breached = tasks.filter((t) => {
       return (
@@ -97,15 +124,14 @@ router.get('/', requireAuth, async (req, res, next) => {
         .map(([month, v]) => ({ month, ...v })),
     };
 
-    if (req.user.role === 'Admin') {
+    if (isAdmin) {
       const users = await readUsers();
       const developers = users.filter((u) => u.role === 'Developer');
 
       const byDeveloper = developers.map((dev) => {
-        const devTasks = allTasks.filter((t) =>
-          (t.developer || '').trim().toLowerCase() === (dev.fullName || '').trim().toLowerCase()
-        );
-        const devCompleted = devTasks.filter((t) => t.apiStatus === 'Completed').length;
+        const identity = { fullName: dev.fullName, username: dev.username };
+        const devTasks = allTasks.filter((t) => isEverInvolved(t, identity));
+        const devCompleted = devTasks.filter((t) => isFullyDoneForUser(t, identity)).length;
         return {
           developer: dev.fullName || dev.username,
           total: devTasks.length,

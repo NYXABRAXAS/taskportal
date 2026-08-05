@@ -1,28 +1,28 @@
+import { Fragment } from 'react';
 import { STATUS_DOT } from '@/lib/utils';
-import type { ActiveStage, StageProgressItem } from '@/lib/types';
+import type { StageProgressItem, Task } from '@/lib/types';
 
-// A task can have multiple stages active at once (Deployment/Mobile/Web run
-// in parallel once API Development is done), each possibly owned by a
-// different person - group by owner so "Shiv: Deployment, Mobile" reads as
-// one line instead of two separate rows for the same person.
-export function CurrentOwnerBadge({ activeStages, allStagesDone }: { activeStages: ActiveStage[]; allStagesDone: boolean }) {
-  if (allStagesDone || activeStages.length === 0) {
-    return <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">All stages complete</span>;
-  }
-
-  const byOwner = new Map<string, string[]>();
-  activeStages.forEach((s) => {
-    const owner = s.owner || 'Unassigned';
-    byOwner.set(owner, [...(byOwner.get(owner) || []), s.label]);
-  });
+// Fixed 2-column x 3-row grid (Deployment / Mobile / Web, each label + owner)
+// - always exactly 3 rows regardless of how many stages are assigned, so
+// every row in the table has identical height. Shows the raw assignee field
+// directly rather than only "active" stages, so an owner set ahead of time
+// (before their stage opens up) still shows instead of reading "Unassigned".
+export function CurrentOwnerBadge({ task }: { task: Task }) {
+  const rows: { label: string; owner: string }[] = [
+    { label: 'Deployment', owner: task.deployment },
+    { label: 'Mobile Integration', owner: task.mobileIntegration },
+    { label: 'Web Integration', owner: task.webIntegration },
+  ];
 
   return (
-    <div className="space-y-1 text-xs">
-      {[...byOwner.entries()].map(([owner, labels]) => (
-        <div key={owner}>
-          <p className="font-semibold text-slate-700 dark:text-slate-200">{owner}</p>
-          <p className="text-slate-400">{labels.join(', ')}</p>
-        </div>
+    <div className="grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-0.5 text-[11px] leading-4">
+      {rows.map((r) => (
+        <Fragment key={r.label}>
+          <span className="text-slate-400">{r.label}</span>
+          <span className="truncate font-medium text-slate-700 dark:text-slate-200" title={r.owner || undefined}>
+            {r.owner || '-'}
+          </span>
+        </Fragment>
       ))}
     </div>
   );

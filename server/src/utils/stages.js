@@ -81,6 +81,20 @@ function isFullyDoneForUser(task, user) {
   return owned.length > 0 && owned.every((stage) => task[stage.statusKey] === 'Completed');
 }
 
+// Pending/Completed counts for one specific stage, scoped to only the tasks
+// where this user actually owns THAT stage - not their whole lifetime task
+// list. Someone owning Deployment on 8 APIs should show 8 here even if
+// their overall lifetime-involvement count (across all stages) is higher.
+function stageOwnershipStats(tasks, user, stageKey) {
+  const stage = STAGES.find((s) => s.key === stageKey);
+  const owned = tasks.filter((t) => matchesUser(t[stage.ownerKey], user));
+  return {
+    total: owned.length,
+    pending: owned.filter((t) => t[stage.statusKey] !== 'Completed').length,
+    completed: owned.filter((t) => t[stage.statusKey] === 'Completed').length,
+  };
+}
+
 function stageSummary(task) {
   const active = getActiveStages(task);
   return {
@@ -104,5 +118,6 @@ module.exports = {
   isCurrentOwner,
   isEverInvolved,
   isFullyDoneForUser,
+  stageOwnershipStats,
   stageSummary,
 };
