@@ -10,11 +10,24 @@ const {
 const { TASK_COLUMNS, STATUS_OPTIONS } = require('../config/schema');
 const { computeBreach, isDueToday } = require('../utils/breach');
 const { STAGES, getActiveStages, getActiveOwnedStages, isCurrentOwner, isEverInvolved } = require('../utils/stages');
+const { dispatchTaskChangeNotifications } = require('../utils/notify');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
 const ADMIN_EDITABLE_KEYS = TASK_COLUMNS.map((c) => c.key);
+
+// Whenever any stage's owner changes (assigned or reassigned), bump
+// Assigned Date to today - this is the one field the app sets on its own.
+function touchAssignedDateIfOwnerChanged(existing, updated) {
+  const ownerChanged = STAGES.some(
+    (s) => (existing[s.ownerKey] || '').trim() !== (updated[s.ownerKey] || '').trim()
+  );
+  if (ownerChanged) {
+    updated.assignedDate = new Date().toISOString().slice(0, 10);
+  }
+  return updated;
+}
 
 function attachComputed(task) {
   const apiBreach = computeBreach(task.apiDate, task.apiStatus);
@@ -102,6 +115,7 @@ router.post('/', requireAuth, requireRole('Admin'), async (req, res, next) => {
     });
     task.lastUpdatedBy = req.user.fullName || req.user.username;
     task.lastUpdatedAt = new Date().toISOString();
+    touchAssignedDateIfOwnerChanged({}, task);
 
     await appendTaskRow(task);
     await appendActivity({
@@ -113,6 +127,9 @@ router.post('/', requireAuth, requireRole('Admin'), async (req, res, next) => {
       newValue: 'Task created',
       remarks: task.remarks || '',
     });
+
+    // Fire-and-forget: notifications must never slow down or fail the save.
+    dispatchTaskChangeNotifications({}, task, req.user);
 
     res.status(201).json({ message: 'Task created' });
   } catch (err) {
@@ -152,6 +169,7 @@ router.put('/:rowNumber', requireAuth, async (req, res, next) => {
 
     updated.lastUpdatedBy = req.user.fullName || req.user.username;
     updated.lastUpdatedAt = new Date().toISOString();
+    touchAssignedDateIfOwnerChanged(existing, updated);
 
     await writeTaskRow(rowNumber, updated);
 
@@ -166,6 +184,9 @@ router.put('/:rowNumber', requireAuth, async (req, res, next) => {
         remarks: req.body.remarks || '',
       });
     }
+
+    // Fire-and-forget: notifications must never slow down or fail the save.
+    dispatchTaskChangeNotifications(existing, updated, req.user);
 
     res.json({ task: attachComputed(updated), message: 'Task updated' });
   } catch (err) {
@@ -200,6 +221,8 @@ router.post('/:rowNumber/assign', requireAuth, requireRole('Admin'), async (req,
       lastUpdatedBy: req.user.fullName || req.user.username,
       lastUpdatedAt: new Date().toISOString(),
     };
+    touchAssignedDateIfOwnerChanged(existing, updated);
+
     await writeTaskRow(rowNumber, updated);
     await appendActivity({
       timestamp: new Date().toISOString(),
@@ -210,6 +233,9 @@ router.post('/:rowNumber/assign', requireAuth, requireRole('Admin'), async (req,
       newValue: name,
       remarks: 'Reassigned',
     });
+
+    // Fire-and-forget: notifications must never slow down or fail the save.
+    dispatchTaskChangeNotifications(existing, updated, req.user);
 
     res.json({ task: attachComputed(updated) });
   } catch (err) {

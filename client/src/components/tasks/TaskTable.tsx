@@ -91,6 +91,7 @@ export function TaskTable({
       columnHelper.accessor('phase', { header: 'Phase' }),
       columnHelper.accessor('apiName', { header: 'API Name' }),
       columnHelper.accessor('developer', { header: "Api's" }),
+      columnHelper.accessor('assignedDate', { header: 'Assigned Date', cell: (info) => formatDate(info.getValue()) }),
       columnHelper.display({
         id: 'currentOwner',
         header: 'Current Owner',

@@ -29,9 +29,12 @@ const TASK_COLUMNS = [
   { key: 'attachmentUrl', header: 'Attachment', editableBy: ['Admin', 'Developer'] },
   { key: 'lastUpdatedBy', header: 'Last Updated By', editableBy: [] },
   { key: 'lastUpdatedAt', header: 'Last Updated At', editableBy: [] },
+  // Auto-set to today whenever Admin assigns/reassigns any stage - Admin
+  // may also edit it directly if they need to correct it.
+  { key: 'assignedDate', header: 'Assigned Date', editableBy: ['Admin'] },
 ];
 
-const RANGE_LAST_COLUMN = 'T'; // A..T = 20 columns
+const RANGE_LAST_COLUMN = 'U'; // A..U = 21 columns
 const HEADER_ROW = 1;
 const FIRST_DATA_ROW = 2;
 
@@ -57,6 +60,8 @@ const ACTIVITY_COLUMNS = [
   'remarks',
 ];
 
+const EMAIL_AUDIT_COLUMNS = ['timestamp', 'user', 'action', 'email', 'status', 'details'];
+
 module.exports = {
   TASK_COLUMNS,
   RANGE_LAST_COLUMN,
@@ -66,4 +71,5 @@ module.exports = {
   STATUS_COLORS,
   USER_COLUMNS,
   ACTIVITY_COLUMNS,
+  EMAIL_AUDIT_COLUMNS,
 };

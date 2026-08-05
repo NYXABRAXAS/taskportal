@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyRound, Plus, Trash2 } from 'lucide-react';
+import { KeyRound, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useUsers, useCreateUser, useUpdateUser, useResetPassword, useDeleteUser } from '@/hooks/useUsers';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -8,7 +8,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Pill } from '@/components/ui/Badge';
 import { apiErrorMessage } from '@/lib/api';
 import { initials } from '@/lib/utils';
-import type { AppUser } from '@/lib/types';
+import type { AppUser, Role } from '@/lib/types';
 
 const EMPTY_USER = { username: '', password: '', role: 'Developer', fullName: '', email: '', status: 'Active' };
 
@@ -24,6 +24,14 @@ export default function UsersPage() {
   const [error, setError] = useState('');
   const [resetTarget, setResetTarget] = useState<AppUser | null>(null);
   const [newPassword, setNewPassword] = useState('');
+  const [editTarget, setEditTarget] = useState<AppUser | null>(null);
+  const [editForm, setEditForm] = useState<{ fullName: string; email: string; role: Role; status: 'Active' | 'Inactive' }>({
+    fullName: '',
+    email: '',
+    role: 'Developer',
+    status: 'Active',
+  });
+  const [editError, setEditError] = useState('');
 
   async function handleCreate() {
     setError('');
@@ -33,6 +41,23 @@ export default function UsersPage() {
       setCreating(false);
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not create user'));
+    }
+  }
+
+  function openEdit(u: AppUser) {
+    setEditTarget(u);
+    setEditForm({ fullName: u.fullName, email: u.email, role: u.role, status: u.status });
+    setEditError('');
+  }
+
+  async function handleEditSave() {
+    if (!editTarget) return;
+    setEditError('');
+    try {
+      await updateUser.mutateAsync({ rowNumber: editTarget.rowNumber, patch: editForm });
+      setEditTarget(null);
+    } catch (err) {
+      setEditError(apiErrorMessage(err, 'Could not update user'));
     }
   }
 
@@ -117,6 +142,13 @@ export default function UsersPage() {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1.5">
                     <button
+                      onClick={() => openEdit(u)}
+                      className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                      title="Edit user"
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
                       onClick={() => setResetTarget(u)}
                       className="rounded-lg p-1.5 text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-500/10"
                       title="Reset password"
@@ -183,6 +215,56 @@ export default function UsersPage() {
           </Button>
           <Button onClick={handleCreate} disabled={createUser.isPending}>
             {createUser.isPending ? 'Creating...' : 'Create User'}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title={`Edit user: ${editTarget?.username}`}>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-300">Full Name</label>
+            <Input value={editForm.fullName} onChange={(e) => setEditForm((s) => ({ ...s, fullName: e.target.value }))} />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-300">Email</label>
+            <Input
+              type="email"
+              value={editForm.email}
+              onChange={(e) => setEditForm((s) => ({ ...s, email: e.target.value }))}
+              placeholder="name@company.com"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-300">Role</label>
+              <Select value={editForm.role} onChange={(e) => setEditForm((s) => ({ ...s, role: e.target.value as Role }))}>
+                <option value="Developer">Developer</option>
+                <option value="Admin">Admin</option>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-300">Status</label>
+              <Select
+                value={editForm.status}
+                onChange={(e) => setEditForm((s) => ({ ...s, status: e.target.value as 'Active' | 'Inactive' }))}
+              >
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </Select>
+            </div>
+          </div>
+        </div>
+        {editError && (
+          <div className="mt-4 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-500/10 dark:text-red-300">
+            {editError}
+          </div>
+        )}
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => setEditTarget(null)}>
+            Cancel
+          </Button>
+          <Button onClick={handleEditSave} disabled={updateUser.isPending}>
+            {updateUser.isPending ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>
       </Modal>

@@ -18,6 +18,7 @@ export const TASK_FIELDS: TaskFieldMeta[] = [
   { key: 'category', label: 'Category', type: 'text', editableBy: ['Admin'] },
   { key: 'phase', label: 'Phase', type: 'text', editableBy: ['Admin'] },
   { key: 'developer', label: 'API Development Assignee', type: 'text', editableBy: ['Admin'] },
+  { key: 'assignedDate', label: 'Assigned Date', type: 'date', editableBy: ['Admin'] },
   { key: 'apiStatus', label: 'API Status', type: 'select', editableBy: ['Admin', 'Developer'], stage: 'api' },
   { key: 'apiDate', label: 'API Date', type: 'date', editableBy: ['Admin'] },
   { key: 'deployment', label: 'Deployment Assignee', type: 'text', editableBy: ['Admin'] },

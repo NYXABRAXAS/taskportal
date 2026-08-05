@@ -32,6 +32,7 @@ const SHEET_ID = () => process.env.GOOGLE_SHEET_ID;
 const TASKS_TAB = () => process.env.GOOGLE_SHEET_TAB_NAME || 'Api list';
 const USERS_TAB = () => process.env.GOOGLE_USERS_TAB_NAME || 'Users';
 const ACTIVITY_TAB = () => process.env.GOOGLE_ACTIVITY_TAB_NAME || 'ActivityLog';
+const EMAIL_AUDIT_TAB = () => process.env.GOOGLE_EMAIL_AUDIT_TAB_NAME || 'EmailAuditLog';
 
 module.exports = {
   getSheetsClient,
@@ -39,4 +40,5 @@ module.exports = {
   TASKS_TAB,
   USERS_TAB,
   ACTIVITY_TAB,
+  EMAIL_AUDIT_TAB,
 };

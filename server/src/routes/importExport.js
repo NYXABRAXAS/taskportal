@@ -106,7 +106,7 @@ router.get('/export/:format', requireAuth, async (req, res, next) => {
       doc.fontSize(8);
       tasks.forEach((t) => {
         doc.text(
-          `${t.serial}. ${t.apiName} | ${t.category} | ${t.phase} | ${t.developer} | Status: ${t.apiStatus} | API Date: ${t.apiDate}`
+          `${t.serial}. ${t.apiName} | ${t.category} | ${t.phase} | ${t.developer} | Status: ${t.apiStatus} | Assigned: ${t.assignedDate || '-'} | API Date: ${t.apiDate}`
         );
       });
       doc.end();

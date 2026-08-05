@@ -4,8 +4,9 @@ const {
   TASKS_TAB,
   USERS_TAB,
   ACTIVITY_TAB,
+  EMAIL_AUDIT_TAB,
 } = require('../config/googleSheets');
-const { TASK_COLUMNS, RANGE_LAST_COLUMN, USER_COLUMNS, ACTIVITY_COLUMNS } = require('../config/schema');
+const { TASK_COLUMNS, RANGE_LAST_COLUMN, USER_COLUMNS, ACTIVITY_COLUMNS, EMAIL_AUDIT_COLUMNS } = require('../config/schema');
 
 function colLetter(index) {
   // 0 -> A, 1 -> B ...
@@ -208,6 +209,37 @@ async function readActivity(limit = 200) {
   return items.slice(-limit).reverse();
 }
 
+// ---------- Email Audit Log ----------
+
+async function appendEmailAuditLog(entry) {
+  const sheets = getSheetsClient();
+  const values = [EMAIL_AUDIT_COLUMNS.map((k) => entry[k] ?? '')];
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SHEET_ID(),
+    range: `'${EMAIL_AUDIT_TAB()}'!A:F`,
+    valueInputOption: 'USER_ENTERED',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values },
+  });
+}
+
+async function readEmailAuditLog(limit = 200) {
+  const sheets = getSheetsClient();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID(),
+    range: `'${EMAIL_AUDIT_TAB()}'!A2:F`,
+  });
+  const rows = res.data.values || [];
+  const items = rows
+    .map((r) => {
+      const obj = {};
+      EMAIL_AUDIT_COLUMNS.forEach((key, idx) => (obj[key] = r[idx] !== undefined ? r[idx] : ''));
+      return obj;
+    })
+    .filter((a) => a.timestamp);
+  return items.slice(-limit).reverse();
+}
+
 module.exports = {
   colLetter,
   readTasks,
@@ -221,5 +253,7 @@ module.exports = {
   deleteUserRow,
   appendActivity,
   readActivity,
+  appendEmailAuditLog,
+  readEmailAuditLog,
   getSheetIdByTitle,
 };

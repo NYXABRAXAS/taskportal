@@ -8,16 +8,23 @@ through the Google Sheets API using a service account.
 ## How it works
 
 - Your existing spreadsheet tab (**"Api list"**) is the single source of truth
-  for every API task — same columns, same order, nothing renamed.
-- A **Users** tab (auto-created by the setup script) holds login credentials
-  and roles (`Admin` / `Developer`).
-- An **ActivityLog** tab (auto-created) records every field-level change:
-  who changed what, when, old value → new value.
+  for every API task — same columns, same order, nothing renamed, plus an
+  appended **Assigned Date** column the app maintains automatically.
+- A **Users** tab (auto-created by the setup script) holds login credentials,
+  roles (`Admin` / `Developer`), and each person's email address (used for
+  notification emails — see below).
+- An **ActivityLog** tab (auto-created) records every field-level change and
+  every assignment/reassignment/due-date/completion notification — this is
+  what powers the in-app notification bell.
+- An **EmailAuditLog** tab (auto-created) records every email attempt: who,
+  what action, which address, and whether it sent or failed.
 - The **Pivot Table** tab is left untouched.
 
-Admins see and edit every task, manage users, import/export, and view
-company-wide reports. Developers only see and update the tasks assigned to
-them (matched by the `Api's` / developer column against their full name).
+Each API moves through 4 stages (API Development → Deployment → Mobile
+Integration → Web Integration), each with its own assignee. Stage 1 gates the
+rest; once it's Completed, the other 3 open in parallel. Admins see and edit
+everything; developers see every task they've ever been assigned to (for
+history/filtering) but can only edit the stage(s) currently active for them.
 
 ## Project structure
 
@@ -40,7 +47,7 @@ client/   React 19 + Vite + TypeScript + Tailwind frontend
 cd server
 npm install
 cp .env.example .env   # fill in your service account + sheet details
-npm run setup           # creates "Users" + "ActivityLog" tabs, seeds admin/admin123
+npm run setup           # creates "Users" + "ActivityLog" + "EmailAuditLog" tabs, seeds admin/admin123
 npm run dev              # http://localhost:5000
 ```
 
@@ -81,7 +88,7 @@ In local dev, Vite's dev-server proxy forwards `/api` and `/uploads` to
   Blueprint).
 - Set the environment variables from `server/.env.example` in the Render
   dashboard (`GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `GOOGLE_SHEET_ID`,
-  `JWT_SECRET`, `CLIENT_ORIGIN` = your Vercel URL, etc).
+  `JWT_SECRET`, `CLIENT_ORIGIN` = your Vercel URL, `SMTP_*` for email, etc).
 - `GOOGLE_PRIVATE_KEY` must keep its `\n` escapes — paste it exactly as it
   appears in the downloaded service-account JSON's `private_key` field.
 - Note: file uploads are written to local disk (`server/uploads`) and Render's
@@ -113,6 +120,31 @@ reports.
 **Developer** — see only their own tasks; update API/Deployment/Mobile/Web
 status and dates, add remarks, upload a screenshot/document (max 20MB).
 Cannot reassign, delete, or see other developers' tasks.
+
+## Email notifications
+
+The server sends email (via SMTP) and creates a matching in-app notification
+whenever:
+
+- a stage is assigned to someone for the first time
+- a stage is reassigned (both the previous and new assignee are emailed)
+- a stage's due date changes (the current assignee is emailed)
+- a stage is marked Completed (every Admin is emailed)
+
+Configure SMTP via `server/.env` (see `.env.example`): `SMTP_HOST`,
+`SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SECURE`, `SMTP_DOMAIN`, and
+`PORTAL_URL` (used as the "log in here" link in emails). Leave `SMTP_HOST`
+blank to disable email entirely — the app keeps working normally and just
+logs "SMTP not configured" to the EmailAuditLog instead of sending.
+
+Recipient addresses are **never hardcoded** — the app looks up each person's
+email from the `Email` column of the Users tab at send time, matched against
+the stage's assignee name. Keep that column up to date via the Users page (or
+the sheet directly) and notification emails follow automatically.
+
+A failed or skipped send is always logged to EmailAuditLog and never blocks,
+delays, or fails the underlying task save — notifications are fired
+fire-and-forget after the sheet write already succeeded.
 
 ## Notes on the sheet's data format
 

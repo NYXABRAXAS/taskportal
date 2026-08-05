@@ -17,6 +17,7 @@ const reportRoutes = require('./routes/reports');
 const importExportRoutes = require('./routes/importExport');
 const activityRoutes = require('./routes/activity');
 const attachmentRoutes = require('./routes/attachments');
+const emailAuditRoutes = require('./routes/emailAudit');
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api', importExportRoutes); // /api/import, /api/export/:format
 app.use('/api/activity', activityRoutes);
+app.use('/api/email-audit', emailAuditRoutes);
 
 app.use((req, res) => res.status(404).json({ message: 'Not found' }));
 app.use(errorHandler);

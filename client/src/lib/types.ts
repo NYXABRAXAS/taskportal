@@ -49,6 +49,7 @@ export interface Task {
   attachmentUrl: string;
   lastUpdatedBy: string;
   lastUpdatedAt: string;
+  assignedDate: string;
   breach: {
     api: BreachInfo;
     deployment: BreachInfo;
